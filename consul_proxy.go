@@ -30,13 +30,13 @@ type ConsulProxy struct {
  *
  * The proxy must be started once created
  */
-func NewConsulProxy(ip string, port int, serviceName string, consulServer string) *ConsulProxy {
-	lookup := NewConsulLookup(serviceName, consulServer)
+func NewConsulProxy(service *ProxiedService, consulServer *ConsulServerConfig) *ConsulProxy {
+	lookup := NewConsulLookup(service.ServiceName, consulServer)
 	lookup.start()
 
 	return &ConsulProxy {
-		localIp: ip,
-		localPort: port,
+		localIp: service.LocalIP,
+		localPort: service.LocalPort,
 		lookup: lookup,
 	}
 }

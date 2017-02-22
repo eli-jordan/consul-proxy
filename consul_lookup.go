@@ -30,7 +30,8 @@ type ConsulLookup struct {
 	// the name of the service associated with this lookup instance
 	serviceName string
 
-	consulServer string
+	// the consul server that ReST API calls are made against
+	consulServer *ConsulServerConfig
 
 	// the current set of endpoints associated with the service
 	// must be accessed under endpointsMu
@@ -38,7 +39,11 @@ type ConsulLookup struct {
 	endpointsMu sync.Mutex
 }
 
-func NewConsulLookup(serviceName string, consulServer string) *ConsulLookup {
+/**
+ * serviceName - the consul service name to discover
+ * consulServer - (optional)
+ */
+func NewConsulLookup(serviceName string, consulServer *ConsulServerConfig) *ConsulLookup {
 	return &ConsulLookup{
 		serviceName: serviceName,
 		consulServer: consulServer,
@@ -79,10 +84,15 @@ func (cl *ConsulLookup) getEndpoints() []*Endpoint {
 	return result
 }
 
-func lookup(consulServer string, service string) ([]*Endpoint, error) {
+func lookup(consulServer *ConsulServerConfig, service string) ([]*Endpoint, error) {
+
+	server, err := getConsulServer(consulServer)
+	if err != nil {
+		return nil, err
+	}
 
 	config := api.DefaultConfig()
-	config.Address = consulServer
+	config.Address = server
 	client, err := api.NewClient(config)
 	if err != nil {
 		return nil, err
@@ -103,6 +113,41 @@ func lookup(consulServer string, service string) ([]*Endpoint, error) {
 	return endpoints, nil
 
 }
+
+func getConsulServer(config *ConsulServerConfig) (string, error) {
+	if config.Address != "" {
+		return config.Address, nil
+	} else {
+		dnsServer := config.DnsServer
+		if dnsServer == "" {
+			dnsServer = "localhost"
+		}
+
+		dnsPort := config.DnsPort
+		if dnsPort == "" {
+			dnsPort = "53"
+		}
+
+		log.Printf("Looking SRV record for %s using %s", config.DnsName, dnsServer + ":" + dnsPort)
+
+		clientConfig := &dns.ClientConfig{
+			Servers: []string{ dnsServer },
+			Port: dnsPort,
+		}
+
+		address, err := lookupSrv(config.DnsName, clientConfig)
+		if err != nil {
+			log.Printf("Failed to execute DNS SRV lookup: %s", err)
+			return "", err
+		} else {
+			resultAddress := address[0]
+			log.Printf("Found consul server at '%s'", resultAddress)
+			return resultAddress, nil
+		}
+	}
+}
+
+
 
 /**
  * Looks up the specified domain name using an SRV DNS query to the server(s) specified

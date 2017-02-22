@@ -30,16 +30,41 @@ func (ps *ProxiedService) String() string {
 }
 
 /**
+ * The config options used to control how the consul rest server is discovered.
+ *
+ * If the 'Address' is specified, this will simply be used as the ReST endpoint.
+ *
+ * Otherwise, 'DnsName' is used to lookup an SRV record against the DNS servers
+ * specified in 'DnsServers'
+ *
+ * If 'DnsServers' is not specified 'localhost:53' is used.
+ */
+type ConsulServerConfig struct {
+	// the DNS servers used to lookup the consul server
+	DnsServer string
+	DnsPort   string
+
+	// the DNS name used to lookup the consul server
+	DnsName   string
+
+	// the override address for the consul server
+	Address   string
+}
+
+/**
  * Represents the full configuration for a consul proxy instance
  */
 type ConsulProxyConfig struct {
-	DnsServers   []string
-	ConsulServer string
+	// The config options that specify how the consumer server
+	// should be accessed.
+	ConsulServer *ConsulServerConfig
+
+	// The list of services that should be proxied and what local port should be bound.
 	Proxies      []*ProxiedService
 }
 
 func (cpc *ConsulProxyConfig) String() string {
-	return fmt.Sprint("DnsServers: ", cpc.DnsServers, ", Consul Server: ", cpc.ConsulServer, ", Proxies: ", cpc.Proxies)
+	return fmt.Sprint("DnsServers: ", cpc.ConsulServer.DnsServer, ", Consul Server: ", cpc.ConsulServer.Address, ", Proxies: ", cpc.Proxies)
 }
 
 
@@ -118,11 +143,13 @@ func (v *ProxiedServiceList) String() string {
 func configuration() *ConsulProxyConfig {
 
 	var services ProxiedServiceList
-	flag.Var(&services, "service", "The consul services to proxy in the format {service-name}/:{port-on-localhost space separated. e.g. my-service1/:1234 my-service2/:1245")
+	flag.Var(&services, "service", "The consul services to proxy in the format {service-name}/:{port-on-localhost}. This flag can be specified multiple times to proxy multiple services.")
 
 	configFile := flag.String("config-file", "", "The fully qualified path the json configuration file specifying the services to proxy")
-	consulServer := flag.String("consul-server", "", "The host:port where the consul ReST API that should be used for discovery is running")
+	consulServerOverride := flag.String("consul-server-override", "", "The host:port where the consul ReST API that should be used for discovery is running")
+	consulDnsName := flag.String("consul-dns-name", "", "The DNS name used to lookup the consul server")
 	dnsServer := flag.String("dns-server", "", "The DNS server that is used to discover consul")
+	dnsPort := flag.String("dns-port", "", "The port used when making a DNS query to the specified DNS server")
 
 	flag.Parse()
 
@@ -131,8 +158,8 @@ func configuration() *ConsulProxyConfig {
 		os.Exit(1)
 	}
 
-	if *consulServer != "" {
-		log.Println("Consul server has been overriden using configuration", *consulServer)
+	if *consulServerOverride != "" {
+		log.Println("Consul server has been overriden using configuration", *consulServerOverride)
 	}
 
 	if len(services.values) == 0 && *configFile == "" {
@@ -140,17 +167,28 @@ func configuration() *ConsulProxyConfig {
 		os.Exit(1)
 	}
 
+	// TODO: validate the consul dns lookup parameters
+
 	config := new(ConsulProxyConfig)
+	config.ConsulServer = new(ConsulServerConfig)
 	if *configFile != "" {
 		config = readJson(*configFile)
 	}
 
 	if *dnsServer != "" {
-		config.DnsServers = []string{*dnsServer}
+		config.ConsulServer.DnsServer = *dnsServer
 	}
 
-	if *consulServer != "" {
-		config.ConsulServer = *consulServer
+	if *dnsPort != "" {
+		config.ConsulServer.DnsPort = *dnsPort
+	}
+
+	if *consulDnsName != "" {
+		config.ConsulServer.DnsName = *consulDnsName
+	}
+
+	if *consulServerOverride != "" {
+		config.ConsulServer.Address = *consulServerOverride
 	}
 
 	if len(services.values) != 0 {
@@ -159,6 +197,3 @@ func configuration() *ConsulProxyConfig {
 
 	return config
 }
-
-
-

@@ -14,7 +14,7 @@ func main() {
 
 	for _, conf := range configuration.Proxies {
 		wg.Add(1)
-		proxy := NewConsulProxy(conf.LocalIP, conf.LocalPort, conf.ServiceName, configuration.ConsulServer)
+		proxy := NewConsulProxy(conf, configuration.ConsulServer)
 		go func() {
 			defer wg.Done()
 			proxy.start()
