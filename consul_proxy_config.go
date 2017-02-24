@@ -9,6 +9,7 @@ import (
 	"log"
 	"flag"
 	"strings"
+	"errors"
 )
 
 /**
@@ -71,17 +72,20 @@ func (cpc *ConsulProxyConfig) String() string {
 /**
  * Parses the configuration json file
  */
-func readJson(file string) *ConsulProxyConfig {
+func readJson(file string) (*ConsulProxyConfig, error) {
 	data, readErr := ioutil.ReadFile(file)
 	if readErr != nil {
-		log.Fatal("Error reading comfig file", file, readErr)
-		os.Exit(1)
+		log.Fatal("Error reading config file", file, readErr)
+		return nil, readErr
 	}
+	return parseConfig(data), nil
+}
 
+func parseConfig(data []byte) *ConsulProxyConfig {
 	var config ConsulProxyConfig
 	marshalErr := json.Unmarshal(data, &config)
 	if marshalErr != nil {
-		log.Fatal("Error reading comfig file", file, marshalErr)
+		log.Fatal("Error reading config file", marshalErr)
 		os.Exit(1)
 	}
 	return &config
@@ -108,10 +112,16 @@ func (v *ProxiedServiceList) Set(value string) error {
 	var localIP string
 	var localPort string
 	local := strings.Split(proxied[0], ":")
-	if len(local) == 1 {
+
+	if len(local) != 2 {
+		log.Println("Proxied service", proxied, "has an invalid format")
+		os.Exit(1)
+	}
+
+	if local[0] == "" {
 		localIP = "localhost"
-		localPort = local[0]
-	} else if len(local) == 2 {
+		localPort = local[1]
+	} else {
 		localIP = local[0]
 		localPort = local[1]
 	}
@@ -137,63 +147,100 @@ func (v *ProxiedServiceList) String() string {
 	return fmt.Sprintf("%d", *v)
 }
 
+type CliArgs struct {
+	services ProxiedServiceList
+	configFile string
+	consulServerOverride string
+	consulDnsName string
+	dnsServer string
+	dnsPort string
+}
+
 /**
  * Parses the CLI arguments and resolves any config options
  */
 func configuration() *ConsulProxyConfig {
+	cli := parseCommandLine()
 
-	var services ProxiedServiceList
-	flag.Var(&services, "service", "The consul services to proxy in the format {service-name}/:{port-on-localhost}. This flag can be specified multiple times to proxy multiple services.")
-
-	configFile := flag.String("config-file", "", "The fully qualified path the json configuration file specifying the services to proxy")
-	consulServerOverride := flag.String("consul-server-override", "", "The host:port where the consul ReST API that should be used for discovery is running")
-	consulDnsName := flag.String("consul-dns-name", "", "The DNS name used to lookup the consul server")
-	dnsServer := flag.String("dns-server", "", "The DNS server that is used to discover consul")
-	dnsPort := flag.String("dns-port", "", "The port used when making a DNS query to the specified DNS server")
-
-	flag.Parse()
-
-	if *configFile != "" && len(services.values) != 0 {
-		log.Println("-config-file and -proxy-services cannot both be specified. Please use one or the other.")
+	config, err := interpretCommandLine(cli)
+	if err != nil {
+		log.Fatal(err.Error())
 		os.Exit(1)
-	}
-
-	if *consulServerOverride != "" {
-		log.Println("Consul server has been overriden using configuration", *consulServerOverride)
-	}
-
-	if len(services.values) == 0 && *configFile == "" {
-		log.Println("No proxied services specified. Please either specify -proxy-services or -config-file")
-		os.Exit(1)
-	}
-
-	// TODO: validate the consul dns lookup parameters
-
-	config := new(ConsulProxyConfig)
-	config.ConsulServer = new(ConsulServerConfig)
-	if *configFile != "" {
-		config = readJson(*configFile)
-	}
-
-	if *dnsServer != "" {
-		config.ConsulServer.DnsServer = *dnsServer
-	}
-
-	if *dnsPort != "" {
-		config.ConsulServer.DnsPort = *dnsPort
-	}
-
-	if *consulDnsName != "" {
-		config.ConsulServer.DnsName = *consulDnsName
-	}
-
-	if *consulServerOverride != "" {
-		config.ConsulServer.Address = *consulServerOverride
-	}
-
-	if len(services.values) != 0 {
-		config.Proxies = services.values
 	}
 
 	return config
+}
+
+/**
+ * Defines the command line args, and simply assigns the specified values
+ * to the CliArgs struct.
+ */
+func parseCommandLine() *CliArgs {
+	flag.Parse()
+
+	var args CliArgs
+
+	flag.Var(&args.services, "service", "The consul services to proxy in the format {service-name}/:{port-on-localhost}. This flag can be specified multiple times to proxy multiple services.")
+
+	flag.StringVar(&args.configFile, "config-file", "", "The fully qualified path the json configuration file specifying the services to proxy")
+	flag.StringVar(&args.consulServerOverride, "consul-server-override", "", "The host:port where the consul ReST API that should be used for discovery is running")
+	flag.StringVar(&args.consulDnsName, "consul-dns-name", "", "The DNS name used to lookup the consul server")
+	flag.StringVar(&args.dnsServer, "dns-server", "", "The DNS server that is used to discover consul")
+	flag.StringVar(&args.dnsPort, "dns-port", "", "The port used when making a DNS query to the specified DNS server")
+
+	return &args
+}
+
+/**
+ * Reads the specified command line, and generates the final configuration
+ */
+func interpretCommandLine(args *CliArgs) (*ConsulProxyConfig, error) {
+	if args.configFile != "" && len(args.services.values) != 0 {
+		return nil, errors.New("-config-file and -proxy-services cannot both be specified. Please use one or the other.")
+	}
+
+	if args.consulServerOverride != "" {
+		log.Println("Consul server has been overriden using configuration", args.consulServerOverride)
+	}
+
+	if len(args.services.values) == 0 && args.configFile == "" {
+		return nil, errors.New("No proxied services specified. Please either specify -proxy-services or -config-file")
+	}
+
+	if args.consulDnsName == "" && args.consulServerOverride == "" {
+		return nil, errors.New("Unable to find the consul server. Please either specify -consul-server-override or -consul-dns-name")
+	}
+
+	config := new(ConsulProxyConfig)
+	config.ConsulServer = new(ConsulServerConfig)
+	if args.configFile != "" {
+		conf, err := readJson(args.configFile)
+		if err != nil {
+			return nil, err
+		} else {
+			config = conf
+		}
+	}
+
+	if args.dnsServer != "" {
+		config.ConsulServer.DnsServer = args.dnsServer
+	}
+
+	if args.dnsPort != "" {
+		config.ConsulServer.DnsPort = args.dnsPort
+	}
+
+	if args.consulDnsName != "" {
+		config.ConsulServer.DnsName = args.consulDnsName
+	}
+
+	if args.consulServerOverride != "" {
+		config.ConsulServer.Address = args.consulServerOverride
+	}
+
+	if len(args.services.values) != 0 {
+		config.Proxies = args.services.values
+	}
+
+	return config, nil
 }

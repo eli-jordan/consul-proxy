@@ -11,6 +11,10 @@ import (
 )
 
 /**
+ * This file contains the data types and logic involved in discovering a consul service
+ */
+
+/**
  * Represents a TCP endpoint
  */
 type Endpoint struct {
@@ -50,11 +54,16 @@ func NewConsulLookup(serviceName string, consulServer *ConsulServerConfig) *Cons
 	}
 }
 
+/**
+ * Starts the lookup process that periodically discovers the configured
+ * services in consul, so that new TCP connections can be established
+ * using an up to data backend.
+ */
 func (cl *ConsulLookup) start() {
 	var closed = false
 	done := make(chan struct{})
 	go func() {
-		for range time.NewTicker(10 * time.Second).C {
+		for range time.NewTicker(30 * time.Second).C {
 			endpoints, err := lookup(cl.consulServer, cl.serviceName)
 			if err != nil {
 				log.Printf("Error discovering service %s - %s", cl.serviceName, err)
@@ -77,13 +86,21 @@ func (cl *ConsulLookup) start() {
 	<-done
 }
 
+/**
+ * Read the current backend endpoints using the appropriate lock
+ */
 func (cl *ConsulLookup) getEndpoints() []*Endpoint {
 	cl.endpointsMu.Lock()
+	defer cl.endpointsMu.Unlock()
+
 	result := cl.endpoints
-	cl.endpointsMu.Unlock()
 	return result
 }
 
+/**
+ * Performs a consul lookup based on the provided config, which is used to find the consul server,
+ * then finds all healthy instances of the named service using the consul ReST API.
+ */
 func lookup(consulServer *ConsulServerConfig, service string) ([]*Endpoint, error) {
 
 	server, err := getConsulServer(consulServer)
@@ -114,6 +131,13 @@ func lookup(consulServer *ConsulServerConfig, service string) ([]*Endpoint, erro
 
 }
 
+/**
+ * Finds the consul servers hostname/port.
+ *
+ * 1. If the 'Address' config is provided, it is simply used as is.
+ * 2. Otherwise an SRV record is looked up using the DNS server defined by DnsServer  and DnsPort
+ *    configurations. The default DnsServer=localhost default DnsPort=53
+ */
 func getConsulServer(config *ConsulServerConfig) (string, error) {
 	if config.Address != "" {
 		return config.Address, nil
@@ -146,8 +170,6 @@ func getConsulServer(config *ConsulServerConfig) (string, error) {
 		}
 	}
 }
-
-
 
 /**
  * Looks up the specified domain name using an SRV DNS query to the server(s) specified
