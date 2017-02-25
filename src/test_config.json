@@ -1,0 +1,13 @@
+{
+  "ConsulServer": {
+    "DnsServer": "123.123.123.123",
+    "DnsName": "prod-infra-rtp-consul-external.query.ibm"
+  },
+  "Proxies": [
+    {
+      "ServiceName": "service-a",
+      "LocalIP": "0.0.0.0",
+      "LocalPort": 9090
+    }
+  ]
+}

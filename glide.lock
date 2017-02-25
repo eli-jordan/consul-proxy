@@ -1,5 +1,5 @@
 hash: 7cb3b8f66c6e7ad4b58bab73c00eaacc26a1c2e298892a41508617516453f76d
-updated: 2017-02-24T15:37:28.613237388+11:00
+updated: 2017-02-24T18:17:10.902248557+11:00
 imports:
 - name: github.com/hashicorp/consul
   version: 21f2d5ad0c02af6c4b32d8fd04f7c81e9b002d41
@@ -13,16 +13,4 @@ imports:
   - coordinate
 - name: github.com/miekg/dns
   version: 0b729df06cb29cf7a3ff59b876e9a2ecb7fac2b1
-testImports:
-- name: github.com/davecgh/go-spew
-  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
-  subpackages:
-  - spew
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
-  subpackages:
-  - assert
+testImports: []
