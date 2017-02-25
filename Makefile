@@ -23,10 +23,15 @@ deps:
 
 build:
 	gox $(LDFLAGS) $(OS_ARCH) -output="dist/{{.OS}}_{{.Arch}}/consul-proxy" ./src/...
+	zip -r dist/consul-proxy.zip dist/*
 
+# Note, the 'ghr' command is used to create a github release
+# and requires a github API token. In travis this is defined via
+# the GITHUB_TOKEN environment variable, locally it is defined vis
+# the github.token git config
 release: build
-	export GITHUB_API=https://github.ibm.com/api/v3
-	ghr -t dc4acf704f245481569f42c3651b81c478038045 ${VERSION} dist/
+	export GITHUB_API=https://github.ibm.com/api/v3/
+	ghr -u elijordan ${VERSION} dist/consul-proxy.zip
 
 # Run static analysis + unit tests
 test:
