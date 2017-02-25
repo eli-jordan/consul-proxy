@@ -28,6 +28,7 @@ release: build
 	export GITHUB_API=https://github.ibm.com/api/v3
 	ghr -t dc4acf704f245481569f42c3651b81c478038045 ${VERSION} dist/
 
+# Run static analysis + unit tests
 test:
 	go vet ./src/...
 	go test -v -race -cover ./src/...
