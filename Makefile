@@ -11,6 +11,13 @@ LDFLAGS=-ldflags="-X main.Version=$(VERSION) -X  main.Build=$(BUILD)"
 # Define what architecture to cross compile for
 OS_ARCH=-osarch="linux/amd64 linux/386 darwin/amd64 darwin/386 windows/amd64 windows/386"
 
+.PHONY: clean test release build deps coverage
+.DEFAULT_GOAL: build
+
+# Use gox to cross-compile
+build:
+	gox $(LDFLAGS) $(OS_ARCH) -output="dist/{{.OS}}_{{.Arch}}/consul-proxy" ./src/...
+
 # Install
 #   - glide for dependency management
 #   - gox for cross compiling
@@ -21,22 +28,25 @@ deps:
 	go get -v github.com/tcnksm/ghr
 	glide install
 
-build:
-	gox $(LDFLAGS) $(OS_ARCH) -output="dist/{{.OS}}_{{.Arch}}/consul-proxy" ./src/...
-	zip -r dist/consul-proxy.zip dist/*
-
-# Note, the 'ghr' command is used to create a github release
-# and requires a github API token. In travis this is defined via
-# the GITHUB_TOKEN environment variable, locally it is defined vis
-# the github.token git config
+# Zips the build artifacts, and creates a github release
+#
+# Note:
+#    The 'ghr' command is used to create a github release
+#    and requires a github API token. In travis this is defined via
+#    the GITHUB_TOKEN environment variable, locally it is defined vis
+#    the github.token git config
 release: build
+	zip -r dist/consul-proxy.zip dist/*
 	export GITHUB_API=https://github.ibm.com/api/v3/
 	ghr -u elijordan ${VERSION} dist/consul-proxy.zip
 
 # Run static analysis + unit tests
 test:
 	go vet ./src/...
-	go test -v -race -cover ./src/...
+	go test -v -cover -coverprofile dist/cov.out ./src/...
+
+coverage: test
+	go tool cover -html=dist/cov.out -o dist/coverage.html
 
 clean:
 	rm -frv dist

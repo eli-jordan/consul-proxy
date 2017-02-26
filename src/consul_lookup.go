@@ -4,7 +4,7 @@ import (
 	"net"
 	"strconv"
 	"github.com/miekg/dns"
-	"github.com/hashicorp/consul/api"
+	consul "github.com/hashicorp/consul/api"
 	"log"
 	"time"
 	"sync"
@@ -26,31 +26,52 @@ func (ep *Endpoint) String() string {
 	return (ep.host + ":" + strconv.Itoa(ep.port))
 }
 
+// Abstracts the dns srv lookup used to discover the consul server
+type DnsSrvLookup func(
+	/* dnsSever */ string,
+	/* dnsPort  */ string,
+	/* name     */ string) (string, error)
+
+// Abstracts the invocation of the consul ReST API
+// to lookup a service by its name
+type ConsulRestLookup func(
+	/* consulAddress */ string,
+	/* serviceName   */ string) ([]*consul.ServiceEntry, error)
+
 /**
  * Contains the dynamically updating endpoints associated with the provides
  * service. The endpoints are updated in the background, on the specified schedule.
  */
 type ConsulLookup struct {
 	// the name of the service associated with this lookup instance
-	serviceName string
+	serviceName  string
 
 	// the consul server that ReST API calls are made against
 	consulServer *ConsulServerConfig
 
 	// the current set of endpoints associated with the service
 	// must be accessed under endpointsMu
-	endpoints   []*Endpoint
-	endpointsMu sync.Mutex
+	endpoints    []*Endpoint
+	endpointsMu  sync.Mutex
+
+	dnsSrv       DnsSrvLookup
+	consulRest   ConsulRestLookup
+
+	// How often to poll consul for the service addresses
+	pollIntervalSec time.Duration
 }
 
 /**
  * serviceName - the consul service name to discover
- * consulServer - (optional)
+ * consulServer - the config used to lookup the consul server to make ReST requests to
  */
 func NewConsulLookup(serviceName string, consulServer *ConsulServerConfig) *ConsulLookup {
 	return &ConsulLookup{
 		serviceName: serviceName,
 		consulServer: consulServer,
+		pollIntervalSec: 30,
+		dnsSrv: dnsSrvLookup,
+		consulRest: consulRestLookup,
 	}
 }
 
@@ -63,8 +84,8 @@ func (cl *ConsulLookup) start() {
 	var closed = false
 	done := make(chan struct{})
 	go func() {
-		for range time.NewTicker(30 * time.Second).C {
-			endpoints, err := lookup(cl.consulServer, cl.serviceName)
+		for range time.NewTicker(cl.pollIntervalSec * time.Second).C {
+			endpoints, err := cl.lookup()
 			if err != nil {
 				log.Printf("Error discovering service %s - %s", cl.serviceName, err)
 				continue
@@ -101,24 +122,14 @@ func (cl *ConsulLookup) getEndpoints() []*Endpoint {
  * Performs a consul lookup based on the provided config, which is used to find the consul server,
  * then finds all healthy instances of the named service using the consul ReST API.
  */
-func lookup(consulServer *ConsulServerConfig, service string) ([]*Endpoint, error) {
+func (cl *ConsulLookup) lookup() ([]*Endpoint, error) {
 
-	server, err := getConsulServer(consulServer)
+	server, err := cl.getConsulServer()
 	if err != nil {
 		return nil, err
 	}
 
-	config := api.DefaultConfig()
-	config.Address = server
-	client, err := api.NewClient(config)
-	if err != nil {
-		return nil, err
-	}
-
-	services, _, err := client.Health().Service(service, "", true, nil)
-	if err != nil {
-		return nil, err
-	}
+	services, err := cl.consulRest(server, cl.serviceName)
 
 	endpoints := make([]*Endpoint, len(services))
 	for i, s := range services {
@@ -128,7 +139,6 @@ func lookup(consulServer *ConsulServerConfig, service string) ([]*Endpoint, erro
 		}
 	}
 	return endpoints, nil
-
 }
 
 /**
@@ -138,37 +148,60 @@ func lookup(consulServer *ConsulServerConfig, service string) ([]*Endpoint, erro
  * 2. Otherwise an SRV record is looked up using the DNS server defined by DnsServer  and DnsPort
  *    configurations. The default DnsServer=localhost default DnsPort=53
  */
-func getConsulServer(config *ConsulServerConfig) (string, error) {
-	if config.Address != "" {
-		return config.Address, nil
+func (cl *ConsulLookup) getConsulServer() (string, error) {
+	if cl.consulServer.Address != "" {
+		return cl.consulServer.Address, nil
 	} else {
-		dnsServer := config.DnsServer
+		dnsServer := cl.consulServer.DnsServer
 		if dnsServer == "" {
 			dnsServer = "localhost"
 		}
 
-		dnsPort := config.DnsPort
+		dnsPort := cl.consulServer.DnsPort
 		if dnsPort == "" {
 			dnsPort = "53"
 		}
 
-		log.Printf("Looking SRV record for %s using %s", config.DnsName, dnsServer + ":" + dnsPort)
+		log.Printf("Looking SRV record for %s using %s", cl.consulServer.DnsName, dnsServer + ":" + dnsPort)
 
-		clientConfig := &dns.ClientConfig{
-			Servers: []string{ dnsServer },
-			Port: dnsPort,
-		}
-
-		address, err := lookupSrv(config.DnsName, clientConfig)
+		address, err := cl.dnsSrv(cl.consulServer.DnsName, cl.consulServer.DnsPort, cl.serviceName)
 		if err != nil {
 			log.Printf("Failed to execute DNS SRV lookup: %s", err)
 			return "", err
 		} else {
-			resultAddress := address[0]
-			log.Printf("Found consul server at '%s'", resultAddress)
-			return resultAddress, nil
+			log.Printf("Found consul server at '%s'", address)
+			return address, nil
 		}
 	}
+}
+
+func consulRestLookup(consulAddress string, serviceName string) ([]*consul.ServiceEntry, error) {
+	config := consul.DefaultConfig()
+	config.Address = consulAddress
+	client, err := consul.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
+
+	services, _, err := client.Health().Service(serviceName, "", true, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return services, nil
+}
+
+func dnsSrvLookup(dnsServer string, dnsPort string, name string) (string, error) {
+	clientConfig := &dns.ClientConfig{
+		Servers: []string{dnsServer },
+		Port: dnsPort,
+	}
+	results, err := lookupSrv(name, clientConfig)
+	if err != nil {
+		return "", err
+	}
+
+	return results[0], nil
 }
 
 /**

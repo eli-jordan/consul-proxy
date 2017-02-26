@@ -113,7 +113,15 @@ func assertEqual(t *testing.T, expected interface{}, actual interface{}, message
 
 func assertNil(t *testing.T, value interface{}) {
 	if value != nil {
-		t.Fatal("Expected nil")
+		t.Fatalf("Expected nil %v", value)
 	}
 }
+
+func assertNotNil(t *testing.T, value interface{}) {
+	if value == nil {
+		t.Fatal("Expected not nil")
+	}
+}
+
+
 

@@ -2,8 +2,8 @@ package main
 
 import (
 	"log"
-	"sync"
 	"fmt"
+	"sync"
 )
 
 var (
@@ -22,7 +22,8 @@ func main() {
 
 	for _, conf := range configuration.Proxies {
 		wg.Add(1)
-		proxy := NewConsulProxy(conf, configuration.ConsulServer)
+		lookup := NewConsulLookup(conf.ServiceName, configuration.ConsulServer)
+		proxy := NewConsulProxy(conf, lookup)
 		go func() {
 			defer wg.Done()
 			proxy.start()
