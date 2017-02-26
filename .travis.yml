@@ -8,3 +8,7 @@ install:
 script:
   - make test
   - make build
+
+notifications:
+  email:
+    - elijordan@au1.ibm.com
