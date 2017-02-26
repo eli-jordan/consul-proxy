@@ -43,6 +43,7 @@ release: build
 # Run static analysis + unit tests
 test:
 	go vet ./src/...
+	mkdir ./dist
 	go test -v -cover -coverprofile dist/cov.out ./src/...
 
 coverage: test
