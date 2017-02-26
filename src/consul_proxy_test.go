@@ -17,6 +17,12 @@ func (h TestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello World! You have proxied to TestHandler at %s", r.URL.Path)
 }
 
+/**
+ * 1. Starts a simple HTTP server locally
+ * 2. Stubs out the consul lookups, to use the HTTP server as a backend
+ * 3. Starts the proxy with the stubbed backend config
+ * 4. Makes a request to the proxy, and verifies that it invokes the HTTP server.
+ */
 func TestConsulProxy(t *testing.T) {
 	listener, err := ListenAndServeWithClose(TestHandler{})
 	defer listener.Close()
@@ -51,9 +57,10 @@ func TestConsulProxy(t *testing.T) {
 	fmt.Println("Starting proxy...")
 	proxy := NewConsulProxy(proxied, lookup)
 	go proxy.start()
+	time.Sleep(1 * time.Second)
 	fmt.Println("Proxy started!")
 
-	fmt.Println("Making HTTP GET request to http://localhost:61531")
+	fmt.Printf("Making HTTP GET request to http://localhost:%v", proxyPort)
 	response, err1 := http.Get(fmt.Sprintf("http://localhost:%v", proxyPort))
 	assertNil(t, err1)
 
