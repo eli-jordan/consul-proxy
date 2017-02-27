@@ -176,17 +176,17 @@ func configuration() *ConsulProxyConfig {
  * to the CliArgs struct.
  */
 func parseCommandLine() *CliArgs {
-	flag.Parse()
-
 	var args CliArgs
 
-	flag.Var(&args.services, "service", "The consul services to proxy in the format {service-name}/:{port-on-localhost}. This flag can be specified multiple times to proxy multiple services.")
+	flag.Var(&args.services, "service", "The consul services to proxy in the format :{port-on-localhost}/{service-name}. This flag can be specified multiple times to proxy multiple services.")
 
 	flag.StringVar(&args.configFile, "config-file", "", "The fully qualified path the json configuration file specifying the services to proxy")
 	flag.StringVar(&args.consulServerOverride, "consul-server-override", "", "The host:port where the consul ReST API that should be used for discovery is running")
 	flag.StringVar(&args.consulDnsName, "consul-dns-name", "", "The DNS name used to lookup the consul server")
 	flag.StringVar(&args.dnsServer, "dns-server", "", "The DNS server that is used to discover consul")
 	flag.StringVar(&args.dnsPort, "dns-port", "", "The port used when making a DNS query to the specified DNS server")
+
+	flag.Parse()
 
 	return &args
 }

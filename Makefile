@@ -18,6 +18,9 @@ OS_ARCH=-osarch="linux/amd64 linux/386 darwin/amd64 darwin/386 windows/amd64 win
 build:
 	gox $(LDFLAGS) $(OS_ARCH) -output="dist/{{.OS}}_{{.Arch}}/consul-proxy" ./src/...
 
+dev:
+	go build -o ./dist/consul-proxy-dev ./src/...
+
 # Install
 #   - glide for dependency management
 #   - gox for cross compiling

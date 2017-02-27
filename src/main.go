@@ -2,8 +2,8 @@ package main
 
 import (
 	"log"
-	"fmt"
 	"sync"
+	"fmt"
 )
 
 var (
@@ -13,22 +13,22 @@ var (
 
 func main() {
 
-	fmt.Printf("Version: %s, Build: %s", Version, Build)
-
 	configuration := configuration()
 	log.Println("Effective Configuration", configuration)
 
 	var wg sync.WaitGroup
 
-	for _, conf := range configuration.Proxies {
+	for _, proxy := range configuration.Proxies {
 		wg.Add(1)
-		lookup := NewConsulLookup(conf.ServiceName, configuration.ConsulServer)
-		proxy := NewConsulProxy(conf, lookup)
+		lookup := NewConsulLookup(proxy.ServiceName, configuration.ConsulServer)
+		proxy := NewConsulProxy(proxy, lookup)
 		go func() {
 			defer wg.Done()
 			proxy.start()
 		}()
 	}
+
+	fmt.Printf("Version: %s, Build: %s\n", Version, Build)
 
 	wg.Wait()
 }
