@@ -1,6 +1,6 @@
 
 # The semantic version of the tool
-VERSION=0.1.0
+VERSION=0.2.0
 
 # The build number is the git commit id
 BUILD=`git rev-parse HEAD`
@@ -38,7 +38,7 @@ deps:
 #    and requires a github API token. In travis this is defined via
 #    the GITHUB_TOKEN environment variable, locally it is defined vis
 #    the github.token git config
-release: build
+release: clean build
 	zip -r dist/consul-proxy.zip dist/*
 	export GITHUB_API=https://github.ibm.com/api/v3/
 	ghr -u elijordan ${VERSION} dist/consul-proxy.zip

@@ -20,7 +20,7 @@ func main() {
 
 	for _, proxy := range configuration.Proxies {
 		wg.Add(1)
-		lookup := NewConsulLookup(proxy.ServiceName, configuration.ConsulServer)
+		lookup := NewConsulLookup(proxy.ServiceName, proxy.Datacenter, configuration.ConsulServer)
 		proxy := NewConsulProxy(proxy, lookup)
 		go func() {
 			defer wg.Done()

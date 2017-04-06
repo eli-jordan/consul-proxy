@@ -18,7 +18,7 @@ Usage of consul-proxy:
   -dns-server string
         The DNS server that is used to discover consul
   -service value
-        The consul services to proxy in the format :{port-on-localhost}/{service-name}. This flag can be specified multiple times to proxy multiple services.
+        The consul services to proxy in the format :{port-on-localhost}/{service-name}/{datacenter}. This flag can be specified multiple times to proxy multiple services.
 
 ```
 
@@ -49,6 +49,7 @@ This tool makes requests to the consul ReST API to discover the service instance
   "Proxies": [
     {
       "ServiceName": "my-service-name",
+      "Datacenter": "my-datacenter",
       "LocalPort": 9090
     }
   ]

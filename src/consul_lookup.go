@@ -36,7 +36,8 @@ type DnsSrvLookup func(
 // to lookup a service by its name
 type ConsulRestLookup func(
 	/* consulAddress */ string,
-	/* serviceName   */ string) ([]*consul.ServiceEntry, error)
+	/* serviceName   */ string,
+    /* datacenter    */ string) ([]*consul.ServiceEntry, error)
 
 /**
  * Contains the dynamically updating endpoints associated with the provides
@@ -45,6 +46,9 @@ type ConsulRestLookup func(
 type ConsulLookup struct {
 	// the name of the service associated with this lookup instance
 	serviceName  string
+
+	// the datacenter the service should be looked up in
+	datacenter string
 
 	// the consul server that ReST API calls are made against
 	consulServer *ConsulServerConfig
@@ -65,9 +69,10 @@ type ConsulLookup struct {
  * serviceName - the consul service name to discover
  * consulServer - the config used to lookup the consul server to make ReST requests to
  */
-func NewConsulLookup(serviceName string, consulServer *ConsulServerConfig) *ConsulLookup {
+func NewConsulLookup(serviceName string, datacenter string, consulServer *ConsulServerConfig) *ConsulLookup {
 	return &ConsulLookup{
 		serviceName: serviceName,
+		datacenter: datacenter,
 		consulServer: consulServer,
 		pollIntervalSec: 30,
 		dnsSrv: dnsSrvLookup,
@@ -129,7 +134,7 @@ func (cl *ConsulLookup) lookup() ([]*Endpoint, error) {
 		return nil, err
 	}
 
-	services, err := cl.consulRest(server, cl.serviceName)
+	services, err := cl.consulRest(server, cl.serviceName, cl.datacenter)
 
 	endpoints := make([]*Endpoint, len(services))
 	for i, s := range services {
@@ -175,15 +180,22 @@ func (cl *ConsulLookup) getConsulServer() (string, error) {
 	}
 }
 
-func consulRestLookup(consulAddress string, serviceName string) ([]*consul.ServiceEntry, error) {
+func consulRestLookup(consulAddress string, serviceName string, datacenter string) ([]*consul.ServiceEntry, error) {
 	config := consul.DefaultConfig()
 	config.Address = consulAddress
+
+	log.Printf("Using consul server %s to lookup service=%s in datacenter=%s", consulAddress, serviceName, datacenter)
+
 	client, err := consul.NewClient(config)
 	if err != nil {
 		return nil, err
 	}
 
-	services, _, err := client.Health().Service(serviceName, "", true, nil)
+	options := &consul.QueryOptions{
+		Datacenter: datacenter,
+	}
+
+	services, _, err := client.Health().Service(serviceName, "", true, options)
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,7 @@ func TestConsulLookup_getConsulServer_OverrideAddress(t *testing.T) {
 	config := &ConsulServerConfig {
 		Address: "this.is.an.override.address",
 	}
-	lookup := NewConsulLookup("test-service-name", config)
+	lookup := NewConsulLookup("test-service-name", "", config)
 	result, err := lookup.getConsulServer()
 
 	assertNil(t, err)
@@ -20,7 +20,7 @@ func TestConsulLookup_getConsulServer_OverrideAddress(t *testing.T) {
 
 func TestConsulLookup_getConsulServer_SrvLookup(t *testing.T) {
 	config := &ConsulServerConfig{}
-	lookup := NewConsulLookup("test-service-name", config)
+	lookup := NewConsulLookup("test-service-name", "", config)
 	lookup.dnsSrv = stubSrvLookup("1.2.3.4:1234", nil)
 	result, err := lookup.getConsulServer()
 
@@ -30,7 +30,7 @@ func TestConsulLookup_getConsulServer_SrvLookup(t *testing.T) {
 
 func TestConsulLookup_getConsulServer_SrvLookup_Error(t *testing.T) {
 	config := &ConsulServerConfig{}
-	lookup := NewConsulLookup("test-service-name", config)
+	lookup := NewConsulLookup("test-service-name", "", config)
 	lookup.dnsSrv = stubSrvLookup("", errors.New("this.is.an.errors"))
 	_, err := lookup.getConsulServer()
 
@@ -42,7 +42,7 @@ func TestConsulLookup_lookup(t *testing.T) {
 	config := &ConsulServerConfig {
 		Address: "this.is.an.override.address",
 	}
-	lookup := NewConsulLookup("test-service-name", config)
+	lookup := NewConsulLookup("test-service-name", "", config)
 
 	entry := &consul.ServiceEntry{
 		Service: &consul.AgentService {
@@ -64,7 +64,7 @@ func TestConsulLookup_start(t *testing.T) {
 	config := &ConsulServerConfig {
 		Address: "this.is.an.override.address",
 	}
-	lookup := NewConsulLookup("test-service-name", config)
+	lookup := NewConsulLookup("test-service-name", "", config)
 	lookup.pollIntervalSec = 1
 
 	entry1 := &consul.ServiceEntry{
@@ -102,7 +102,7 @@ func stubSrvLookup(result string, err error) DnsSrvLookup {
 }
 
 func stubConsulRestLookup(services []*consul.ServiceEntry, err error) ConsulRestLookup {
-	return func(consulAddress string, serviceName string) ([]*consul.ServiceEntry, error) {
+	return func(consulAddress string, serviceName string, datacenter string) ([]*consul.ServiceEntry, error) {
 		return services, err
 	}
 }

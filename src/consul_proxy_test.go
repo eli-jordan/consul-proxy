@@ -43,7 +43,7 @@ func TestConsulProxy(t *testing.T) {
 	config := &ConsulServerConfig {
 		Address: "this.is.an.override.address",
 	}
-	lookup := NewConsulLookup("my-test-service", config)
+	lookup := NewConsulLookup("my-test-service", "", config)
 	lookup.pollIntervalSec = 1
 	entry := &consul.ServiceEntry{
 		Service: &consul.AgentService {

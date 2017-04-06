@@ -19,6 +19,9 @@ type ProxiedService struct {
 	// the consul service name used to discover the service
 	ServiceName string
 
+	// the datacenter which the service should be looked up in
+	Datacenter string
+
 	// the ip for the frontend to bind to - defaults to localhost
 	LocalIP     string
 
@@ -27,7 +30,7 @@ type ProxiedService struct {
 }
 
 func (ps *ProxiedService) String() string {
-	return "localhost:" + strconv.Itoa(ps.LocalPort) + " -> Consul(" + ps.ServiceName + ")"
+	return "localhost:" + strconv.Itoa(ps.LocalPort) + " -> Consul(" + ps.ServiceName + " in datacenter " + ps.Datacenter + ")"
 }
 
 /**
@@ -99,15 +102,29 @@ type ProxiedServiceList struct {
 	values []*ProxiedService
 }
 
-// Parses a ProxiedService from the specified string
+/**
+ * Parses a ProxiedService from the specified string.
+ *
+ * Note: The format is '0.0.0.0:1234/my-service/dc1'
+ *     where
+ *       '0.0.0.0' is optional and specifies the interface to bind to
+ *       '1234' is the port to bind on
+ *       'my-service' is the service name
+ *       'dc1' is optional, and is the datacenter to lookup the service in. If not specified the default is used
+ *             which is the datacenter where the consul server being used is running.
+ */
 func (v *ProxiedServiceList) Set(value string) error {
 	proxied := strings.Split(value, "/")
-	if len(proxied) != 2 {
+	if len(proxied) < 2 || len(proxied) > 3 {
 		log.Println("Proxied service", proxied, "has an invalid format")
 		os.Exit(1)
 	}
 
 	serviceName := proxied[1]
+	var datacenter string
+	if len(proxied) == 3 {
+		datacenter = proxied[2];
+	}
 
 	var localIP string
 	var localPort string
@@ -136,6 +153,7 @@ func (v *ProxiedServiceList) Set(value string) error {
 
 	v.values = append(values, &ProxiedService{
 		ServiceName: serviceName,
+		Datacenter: datacenter,
 		LocalIP: localIP,
 		LocalPort: port,
 	})
@@ -145,15 +163,6 @@ func (v *ProxiedServiceList) Set(value string) error {
 
 func (v *ProxiedServiceList) String() string {
 	return fmt.Sprintf("%v", *v)
-}
-
-type CliArgs struct {
-	services ProxiedServiceList
-	configFile string
-	consulServerOverride string
-	consulDnsName string
-	dnsServer string
-	dnsPort string
 }
 
 /**
@@ -171,6 +180,15 @@ func configuration() *ConsulProxyConfig {
 	return config
 }
 
+type CliArgs struct {
+	services ProxiedServiceList
+	configFile string
+	consulServerOverride string
+	consulDnsName string
+	dnsServer string
+	dnsPort string
+}
+
 /**
  * Defines the command line args, and simply assigns the specified values
  * to the CliArgs struct.
@@ -178,7 +196,7 @@ func configuration() *ConsulProxyConfig {
 func parseCommandLine() *CliArgs {
 	var args CliArgs
 
-	flag.Var(&args.services, "service", "The consul services to proxy in the format :{port-on-localhost}/{service-name}. This flag can be specified multiple times to proxy multiple services.")
+	flag.Var(&args.services, "service", "The consul services to proxy in the format :{port-on-localhost}/{service-name}/{datacenter}. This flag can be specified multiple times to proxy multiple services.")
 
 	flag.StringVar(&args.configFile, "config-file", "", "The fully qualified path the json configuration file specifying the services to proxy")
 	flag.StringVar(&args.consulServerOverride, "consul-server-override", "", "The host:port where the consul ReST API that should be used for discovery is running")

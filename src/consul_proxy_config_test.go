@@ -16,6 +16,7 @@ func TestParseJsonDefiningAllPossibleFields(t *testing.T) {
 				"Proxies": [
 				   {
 					  "ServiceName": "service-a",
+					  "Datacenter": "foo-bar",
 					  "LocalIP": "0.0.0.0",
 					  "LocalPort": 9090
 				   },
@@ -34,6 +35,8 @@ func TestParseJsonDefiningAllPossibleFields(t *testing.T) {
 	assertEqual(t, "service-a", config.Proxies[0].ServiceName, "Proxies[0].ServiceName")
 	assertEqual(t, "0.0.0.0", config.Proxies[0].LocalIP, "Proxies[0].LocalIP")
 	assertEqual(t, 9090, config.Proxies[0].LocalPort, "Proxies[0].LocalPort")
+	assertEqual(t, "foo-bar", config.Proxies[0].Datacenter, "Proxies[1].Datacenter")
+	assertEqual(t, "", config.Proxies[1].Datacenter, "Empty Datacenter")
 }
 
 func TestInterpretCommandLine_Simple(t *testing.T) {
@@ -83,27 +86,39 @@ func TestInterpretCommandLine_CliServicesAndConfigFile(t *testing.T) {
 	}
 }
 
-func TestProxiedServiceList_Set(t *testing.T) {
-	var list *ProxiedServiceList
-
+func TestProxiedServiceList_Set_NoDatacenter(t *testing.T) {
 	// common format :{port}/{service-name}
-	list = &ProxiedServiceList{}
+	list := &ProxiedServiceList{}
 	err1 := list.Set(":9092/my-service-name1")
 
 	assertNil(t, err1)
 	assertEqual(t, "localhost", list.values[0].LocalIP, "LocalIP")
 	assertEqual(t, "my-service-name1", list.values[0].ServiceName, "ServiceName")
-	assertEqual(t, 9092, list.values[0].LocalPort, "ServiceName")
+	assertEqual(t, 9092, list.values[0].LocalPort, "LocalPort")
+}
 
+func TestProxiedServiceList_Set_WithDatacenter(t *testing.T) {
+	// common format :{port}/{service-name}
+	list := &ProxiedServiceList{}
+	err1 := list.Set(":1111/my-service-name2/sydney")
+
+	assertNil(t, err1)
+	assertEqual(t, "localhost", list.values[0].LocalIP, "LocalIP")
+	assertEqual(t, "my-service-name2", list.values[0].ServiceName, "ServiceName")
+	assertEqual(t, 1111, list.values[0].LocalPort, "LocalPort")
+	assertEqual(t, "sydney", list.values[0].Datacenter, "Datacenter")
+}
+
+func TestProxiedServiceList_Set_WithBindPort(t *testing.T) {
 	// specify bind ip {bind-ip}:{port}/{service-name}
-	list = &ProxiedServiceList{}
+	list := &ProxiedServiceList{}
 	err2 := list.Set("0.0.0.0:9092/my-service-name2")
 	assertNil(t, err2)
 	assertEqual(t, "0.0.0.0", list.values[0].LocalIP, "LocalIP")
 	assertEqual(t, "my-service-name2", list.values[0].ServiceName, "ServiceName")
 	assertEqual(t, 9092, list.values[0].LocalPort, "ServiceName")
-
 }
+
 
 func assertEqual(t *testing.T, expected interface{}, actual interface{}, message string) {
 	if expected != actual {
