@@ -1,6 +1,6 @@
 
 # The semantic version of the tool
-VERSION=0.2.0
+VERSION=0.0.1-test
 
 # The build number is the git commit id
 BUILD=`git rev-parse HEAD`
@@ -37,10 +37,10 @@ deps:
 #    The 'ghr' command is used to create a github release
 #    and requires a github API token. In travis this is defined via
 #    the GITHUB_TOKEN environment variable, locally it is defined vis
-#    the github.token git config
+#    the git config get github.token git config
+release: export GITHUB_API=https://github.ibm.com/api/v3/
 release: clean build
 	zip -r dist/consul-proxy.zip dist/*
-	export GITHUB_API=https://github.ibm.com/api/v3/
 	ghr -u elijordan ${VERSION} dist/consul-proxy.zip
 
 # Run static analysis + unit tests
