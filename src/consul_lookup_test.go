@@ -5,6 +5,7 @@ import (
 	"errors"
 	consul "github.com/hashicorp/consul/api"
 	"time"
+	"strconv"
 )
 
 func TestConsulLookup_getConsulServer_OverrideAddress(t *testing.T) {
@@ -26,6 +27,30 @@ func TestConsulLookup_getConsulServer_SrvLookup(t *testing.T) {
 
 	assertNil(t, err)
 	assertEqual(t, "1.2.3.4:1234", result, "ConsulServer")
+}
+
+func TestConsulLookup_getConsulServer_UsingMockDnsServerForServerLookup(t *testing.T) {
+	server := MockDnsServer{
+		records: map[string]*DnsRecord{
+			"test.consul.server.service.": {ip: "1.1.1.1", port: 8899 },
+		},
+	}
+
+	server.start()
+	defer server.stop()
+
+	config := &ConsulServerConfig {
+		DnsServer: "127.0.0.1",
+		DnsPort: strconv.Itoa(server.port),
+		DnsName: "test.consul.server.service",
+	}
+
+	lookup := NewConsulLookup("test-service-name", "", config)
+
+	result, err := lookup.getConsulServer()
+
+	assertNil(t, err)
+	assertEqual(t, "1.1.1.1.:8899", result, "ConsulServer")
 }
 
 func TestConsulLookup_getConsulServer_SrvLookup_Error(t *testing.T) {

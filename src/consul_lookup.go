@@ -138,7 +138,7 @@ func (cl *ConsulLookup) lookup() ([]*Endpoint, error) {
 
 	endpoints := make([]*Endpoint, len(services))
 	for i, s := range services {
-		endpoints[i] = &Endpoint{
+		endpoints[i] = &Endpoint {
 			host: s.Service.Address,
 			port: s.Service.Port,
 		}
@@ -169,7 +169,7 @@ func (cl *ConsulLookup) getConsulServer() (string, error) {
 
 		log.Printf("Looking SRV record for %s using %s", cl.consulServer.DnsName, dnsServer + ":" + dnsPort)
 
-		address, err := cl.dnsSrv(cl.consulServer.DnsName, cl.consulServer.DnsPort, cl.serviceName)
+		address, err := cl.dnsSrv(dnsServer, dnsPort, cl.consulServer.DnsName)
 		if err != nil {
 			log.Printf("Failed to execute DNS SRV lookup: %s", err)
 			return "", err
@@ -204,8 +204,9 @@ func consulRestLookup(consulAddress string, serviceName string, datacenter strin
 }
 
 func dnsSrvLookup(dnsServer string, dnsPort string, name string) (string, error) {
-	clientConfig := &dns.ClientConfig{
-		Servers: []string{dnsServer },
+
+	clientConfig := &dns.ClientConfig {
+		Servers: []string { dnsServer },
 		Port: dnsPort,
 	}
 	results, err := lookupSrv(name, clientConfig)
